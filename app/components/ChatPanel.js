@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { CHAT_STREAM_TYPE, consumeChatResponse } from "../lib/chat-stream";
 export default function ChatPanel({ roundId, context, telemetry }) {
   const [messages, setMessages] = useState([]),
     [input, setInput] = useState(""),
@@ -9,9 +10,14 @@ export default function ChatPanel({ roundId, context, telemetry }) {
   const messagesRef = useRef(null),
     activeSince = useRef(null),
     lastInteraction = useRef(0),
-    pendingQuestion = useRef(null);
+    pendingQuestion = useRef(null),
+    activeRequest = useRef(null);
   const area = context.feedback.categoryId;
   const chatScreen = context.stage;
+  useEffect(() => () => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+  }, [roundId, area]);
   function log(type, payload) {telemetry.emit(type,payload,null,{roundId,screen:chatScreen});}
   const draftKey = `speech-chat-draft:v1:${roundId}:${area}`;
   useEffect(() => {
@@ -92,6 +98,9 @@ export default function ChatPanel({ roundId, context, telemetry }) {
     event.preventDefault();
     const message = input.trim();
     if (!message || busy) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    let streamingId = null;
     setBusy(true);
     setError("");
     start();
@@ -107,8 +116,8 @@ export default function ChatPanel({ roundId, context, telemetry }) {
       log("chat_question_sent",{area,requestId:question.requestId});
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(55000),
+        headers: { "Content-Type": "application/json", Accept: CHAT_STREAM_TYPE },
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(70000)]),
         body: JSON.stringify({
           roundId,
           area,
@@ -118,35 +127,42 @@ export default function ChatPanel({ roundId, context, telemetry }) {
           clientAt,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await consumeChatResponse(response, (event) => {
+        if (activeRequest.current !== controller) return;
+        if (event.type === "start") {
+          streamingId = event.id;
+          setMessages((current) => [
+            ...current.filter((m) => m.id !== event.questionId && m.reply_to !== event.questionId),
+            { id: event.questionId, role: "user", content: message, client_at: clientAt },
+            { id: event.id, role: "assistant", content: "", status: "pending", reply_to: event.questionId },
+          ]);
+        } else if (event.type === "delta") {
+          setMessages((current) => current.map((m) => m.id === streamingId ? { ...m, content: m.content + event.text } : m));
+        }
+      });
+      if (activeRequest.current !== controller) return;
       log("chat_answer_received",{area,requestId:question.requestId,answerId:data.id});
       setMessages((current) => [
-        ...current.filter((m)=>m.id !== data.questionId && m.id !== data.id),
-        {
-          id: data.questionId,
-          role: "user",
-          content: message,
-          client_at: clientAt,
-        },
-        {
-          id: data.id,
-          role: "assistant",
-          content: data.response,
-          client_at: data.at,
-        },
+        ...current.filter((m) => m.id !== data.questionId && m.id !== data.id && m.id !== streamingId && m.reply_to !== data.questionId),
+        { id: data.questionId, role: "user", content: message, client_at: clientAt, status: "completed" },
+        { id: data.id, role: "assistant", content: data.response, client_at: data.at, status: "completed", reply_to: data.questionId },
       ]);
       pendingQuestion.current=null;
       setInput("");
       saveDraft("",null);
     } catch (err) {
+      if (activeRequest.current !== controller) return;
+      setMessages((current) => current.map((m) => m.id === streamingId ? { ...m, status: "failed" } : m));
       setError(
         err.name === "TimeoutError"
           ? "응답 시간이 길어지고 있습니다. 잠시 후 다시 시도해 주세요."
           : err.message,
       );
     } finally {
-      setBusy(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setBusy(false);
+      }
     }
   }
   return (
@@ -184,19 +200,21 @@ export default function ChatPanel({ roundId, context, telemetry }) {
         role="log"
         aria-label="대화 내역"
         aria-live="polite"
+        aria-busy={busy}
       >
         <div className="chat-bubble assistant">
           {context.activeQuestion.question}
         </div>
-        {messages.map((m) => (
+        {messages.filter((m) => m.content || m.status === "failed").map((m) => (
           <div className={`chat-bubble ${m.role}`} key={m.id}>
             <span className="sr-only">{m.role === "user" ? "나" : "AI"}: </span>
             {m.content}
+            {m.role === "assistant" && m.status === "failed" && <small className="chat-pending">（응답이 중단되었습니다. 같은 질문을 다시 전송해 주세요.）</small>}
           </div>
         ))}
         {busy && (
           <p className="chat-pending" role="status">
-            답변을 생각하고 있습니다…
+            {messages.some((m) => m.role === "assistant" && m.status === "pending" && m.content) ? "답변을 작성하고 있습니다…" : "답변을 생각하고 있습니다…"}
           </p>
         )}
       </div>

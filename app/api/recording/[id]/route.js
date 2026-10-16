@@ -3,6 +3,7 @@ import { api } from "../../../lib/api";
 import { database } from "../../../lib/db";
 import { assertStudy } from "../../../lib/study";
 import { videoRange, videoStream } from "../../../lib/video-stream";
+import { storageVideoStream } from "../../../lib/recording-storage";
 export const runtime = "nodejs";
 
 async function recording(request, context, head = false) {
@@ -11,7 +12,7 @@ async function recording(request, context, head = false) {
     assertStudy(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id), "회차를 확인해 주세요.", 400);
     // Ownership is checked on every request, including cache revalidation and HEAD.
     const row = (await database().query(
-      `SELECT rec.mime_type,rec.byte_size,rec.recorded_at FROM speech_experiment.recordings rec
+      `SELECT rec.mime_type,rec.byte_size,rec.recorded_at,rec.storage_bucket,rec.storage_path,rec.storage_generation FROM speech_experiment.recordings rec
        JOIN speech_experiment.rounds r ON r.id=rec.round_id
        WHERE rec.round_id=$1 AND r.participant_id=$2`,
       [id, participant.id],
@@ -42,7 +43,7 @@ async function recording(request, context, head = false) {
     if (!range) return new Response(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${size}` } });
     headers["Content-Length"] = String(range.end - range.start + 1);
     if (range.partial) headers["Content-Range"] = `bytes ${range.start}-${range.end}/${size}`;
-    const body = head ? null : videoStream({
+    const body = head ? null : row.storage_path ? storageVideoStream(row, { ...range, signal: request.signal }) : videoStream({
       ...range,
       signal: request.signal,
       read: async (offset, length) => (await database().query(

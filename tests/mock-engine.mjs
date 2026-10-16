@@ -1,6 +1,8 @@
 import { RUBRIC_CATEGORIES as categories } from "../app/lib/rubric.js";
 import http from "node:http";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+const materials = readFileSync(new URL("../speaking_materials.md", import.meta.url), "utf8");
 const areas = [
   ["content", "내용"],
   ["organization", "조직"],
@@ -25,7 +27,7 @@ export function startMockEngine(port = 8011) {
     }).formData();
     const context = JSON.parse(form.get("study_context"));
     if (
-      !context.materials.text.includes("세온 호수") ||
+      context.materials.text !== materials ||
       createHash("sha256").update(context.materials.text).digest("hex") !== context.materials.sha256 ||
       (context.roundNumber === 1 && context.previousRound !== null) ||
       (context.roundNumber > 1 && (context.previousRound?.number !== context.roundNumber - 1 || context.previousRound?.feedback.length !== 3))

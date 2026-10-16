@@ -1,6 +1,8 @@
 import { test, expect } from "@playwright/test";
 import nextEnv from "@next/env";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { deleteStoredRecording, storeRecording } from "../app/lib/recording-storage.js";
 import { database, transaction } from "../app/lib/db.js";
 nextEnv.loadEnvConfig(process.cwd());
 const areas = ["내용", "조직", "표현 및 전달"],
@@ -32,6 +34,7 @@ async function record(page, n) {
   await page
     .getByRole("button", { name: `${n}번째 발표 시작`, exact: true })
     .click();
+  await page.getByRole("button", { name: "발표 녹화 시작", exact: true }).click();
   await expect(page.getByLabel("웹캠 미리보기")).toBeVisible();
   await expect(page.getByLabel("녹화 경과 시간")).toHaveText(/00:0[1-9]/);
   await page.getByRole("button", { name: "발표 종료", exact: true }).click();
@@ -87,6 +90,7 @@ async function fill(page, stage) {
 test.afterAll(async () => {
   await transaction(async (client) => {
     for (const id of created) {
+      for (const row of (await client.query("SELECT rec.* FROM speech_experiment.recordings rec JOIN speech_experiment.rounds r ON r.id=rec.round_id WHERE r.participant_id=$1", [id])).rows) await deleteStoredRecording(row);
       await client.query(
         "DELETE FROM speech_experiment.chat_messages WHERE round_id IN (SELECT id FROM speech_experiment.rounds WHERE participant_id=$1) AND role='assistant'",
         [id],
@@ -134,7 +138,7 @@ test("five presentations, real browser recordings, server responses and research
   for (let n = 1; n <= 5; n++) {
     if (n > 1) {
       await expect(
-        page.getByRole("heading", { name: "다음 발표를 위한 나의 행동계획" }),
+        page.getByRole("heading", { name: `${n-1}번째 발표 후 작성한 나의 행동계획` }),
       ).toBeVisible();
       await expect(page.locator(".previous-plan")).toContainText(
         "실제 근거와 다음 발표 계획",
@@ -163,6 +167,7 @@ test("five presentations, real browser recordings, server responses and research
       await expect(page.getByRole("tooltip")).toContainText(
         "발표 주제에 대한 핵심 내용이 정확하게 제시되어 있음.",
       );
+      for (const label of ["매우 잘함","잘함","보통","노력요함"]) await expect(page.getByRole("tooltip").locator("li strong", {hasText:new RegExp(`^${label}$`)})).toBeVisible();
       await expect(page.getByRole("tooltip")).toContainText(
         "발표 주제에 대한 핵심 내용을 충분히 다루지 못함.",
       );
@@ -223,6 +228,9 @@ test("five presentations, real browser recordings, server responses and research
     await expect(
       page.getByRole("button", { name: `${n + 1}번째 발표 시작`, exact: true }),
     ).toBeVisible();
+    await expect(page.getByLabel("발표 지문", {exact:true})).toContainText("공공 서비스의 특성과 민간 위탁의 운영 방식");
+    await expect(page.locator(".previous-plan")).toContainText(`${n}번째 발표 후 작성한 나의 행동계획`);
+    await expect(page.locator(".previous-plan")).toContainText("실제 근거와 다음 발표 계획");
   }
   const rows = (
     await database().query(
@@ -243,7 +251,7 @@ test("five presentations, real browser recordings, server responses and research
   )).rows;
   for (const [index, row] of snapshots.entries()) {
     expect(row.analysis.pipeline).toBe("grouped-criterion-algorithmic");
-    expect(row.analysis.context.materials.text).toContain("세온 호수");
+    expect(row.analysis.context.materials.text).toBe(await readFile(new URL("../speaking_materials.md", import.meta.url), "utf8"));
     expect(row.analysis.context.roundNumber).toBe(row.number);
     if (index === 0) expect(row.analysis.context.previousRound).toBeNull();
     else {
@@ -311,6 +319,26 @@ test("experimental chat error recovery and participant data isolation", async ({
     fullPage: true,
   });
 });
+test("preparation shows current materials, restores its timer and links the surveys", async ({ page }) => {
+  const id = await fixture("control");
+  await page.goto("/");
+  await expect(page.getByRole("link", {name:/사전 설문 참여하기/})).toHaveAttribute("href", "https://forms.gle/HADj4URaV4PweZig7");
+  await login(page,id,"control");
+  await expect(page.getByLabel("발표 지문", {exact:true})).toContainText("공공 서비스의 특성과 민간 위탁의 운영 방식");
+  const timer = page.getByLabel("발표 준비 경과 시간");
+  await expect(timer).toHaveText(/00:0[2-9]/);
+  const before = await timer.textContent();
+  await page.reload();
+  await expect.poll(async () => (await timer.textContent()) >= before).toBe(true);
+  await page.getByLabel("발표 지문", {exact:true}).locator("p").last().scrollIntoViewIfNeeded();
+  await expect(timer).toBeInViewport();
+  const state = await (await page.request.get("/api/study")).json();
+  await database().query("UPDATE speech_experiment.rounds SET state='completed' WHERE id=$1", [state.round.id]);
+  for (let n=2;n<=5;n++) await database().query("INSERT INTO speech_experiment.rounds(id,participant_id,number,state,participant_finished_at) VALUES($1,$2,$3,'completed',$4)", [randomUUID(),id,n,n===5?new Date():null]);
+  await page.reload();
+  await expect(page.getByRole("link", {name:/사후 설문 참여하기/})).toHaveAttribute("href", "https://forms.gle/BCAbMYZb9m4jxxzcA");
+});
+
 test("denied webcam permission leaves the round ready and allows retry", async ({
   page,
 }) => {
@@ -335,7 +363,7 @@ test("device check, local recording recovery, technical retake and chat drafts",
   page.on("dialog", (dialog)=>dialog.accept());
   const id=await fixture("experiment");
   await login(page,id,"experiment");
-  await expect(page.getByLabel("실험 진행 안내")).toContainText("별도로 제공한 발표 자료");
+  await expect(page.getByLabel("실험 진행 안내")).toContainText("아래 지문");
   await page.getByRole("button",{name:"카메라와 마이크 점검",exact:true}).click();
   await expect(page.getByLabel("점검용 카메라 미리보기")).toBeVisible();
   await expect(page.getByLabel("마이크 입력 수준")).toBeVisible();
@@ -343,6 +371,15 @@ test("device check, local recording recovery, technical retake and chat drafts",
   expect((await (await page.request.get("/api/study")).json()).round.state).toBe("ready");
   await page.getByRole("button",{name:"점검 마치기",exact:true}).click();
   await page.getByRole("button",{name:"1번째 발표 시작",exact:true}).click();
+  await expect(page.getByLabel("점검용 카메라 미리보기")).toBeVisible();
+  await expect(page.getByLabel("녹화 경과 시간")).toHaveCount(0);
+  await page.waitForTimeout(1200);
+  const beforeRecording=(await (await page.request.get("/api/study")).json()).round;
+  expect(beforeRecording.state).toBe("ready");
+  const beforeAttempt=(await database().query("SELECT recording_attempts,started_at FROM speech_experiment.rounds WHERE id=$1",[beforeRecording.id])).rows[0];
+  expect(beforeAttempt.recording_attempts).toBe(0);
+  expect(beforeAttempt.started_at).toBeNull();
+  await page.getByRole("button",{name:"발표 녹화 시작",exact:true}).click();
   await expect(page.getByLabel("녹화 경과 시간")).toHaveText(/00:0[2-9]/);
   await page.getByRole("button",{name:"발표 종료",exact:true}).click();
   await expect(page.getByLabel("업로드 전 녹화 확인")).toBeVisible();
@@ -378,6 +415,51 @@ test("device check, local recording recovery, technical retake and chat drafts",
     return new Promise(resolve=>{const r=indexedDB.open('speech-recordings-v1',1);r.onsuccess=()=>{const db=r.result,t=db.transaction('drafts'),q=t.objectStore('drafts').get(roundId);q.onsuccess=()=>resolve(q.result??null);t.oncomplete=()=>db.close();};});
   },state.round.id);
   expect(saved).toBeNull();
+});
+
+test("chat displays streamed text before completion and retries interrupted text without duplicates", async ({ page }) => {
+  const id = await fixture("experiment"); await login(page,id,"experiment"); await record(page,1);
+  await page.evaluate(() => {
+    const original = window.fetch;
+    window.chatRequests = [];
+    window.fetch = (url, options) => {
+      if (url !== "/api/chat" || options?.method !== "POST") return original(url, options);
+      const body = JSON.parse(options.body), index = window.chatRequests.push(body);
+      const id = `answer-${index}`, questionId = body.requestId, encode = new TextEncoder();
+      return Promise.resolve(new Response(new ReadableStream({ start(controller) {
+        const send = (event) => controller.enqueue(encode.encode(JSON.stringify(event)+"\n"));
+        send({type:"start",id,questionId}); send({type:"delta",text:"첫 번째 답변 조각"});
+        window.finishChat = () => {
+          if (index === 2) { controller.close(); return; }
+          send({type:"delta",text:"과 두 번째 조각"});
+          send({type:"done",id,questionId,response:"첫 번째 답변 조각과 두 번째 조각",at:new Date().toISOString()});
+          controller.close();
+        };
+      } }), {headers:{"Content-Type":"application/x-ndjson"}}));
+    };
+  });
+  const input = page.getByLabel("AI에게 보낼 메시지"), send = page.getByRole("button",{name:"메시지 보내기"});
+  await input.fill("스트리밍 답변 확인"); await send.click();
+  await expect(page.locator(".chat-bubble.assistant").last()).toContainText("첫 번째 답변 조각");
+  await expect(send).toBeDisabled();
+  await expect(page.locator(".chat-messages")).not.toContainText("두 번째 조각");
+  await page.evaluate(() => window.finishChat());
+  await expect(input).toBeEmpty();
+  await expect(page.locator(".chat-bubble.assistant").last()).toContainText("두 번째 조각");
+  await input.fill("중단 후 재시도"); await send.click();
+  await expect.poll(() => page.evaluate(() => window.chatRequests.length)).toBe(2);
+  await expect(page.locator(".chat-bubble.assistant").last()).toHaveText(/첫 번째 답변 조각/);
+  await page.evaluate(() => window.finishChat());
+  await expect(page.locator(".chat-error")).toContainText("중단");
+  await expect(input).toHaveValue("중단 후 재시도");
+  await send.click();
+  await expect.poll(() => page.evaluate(() => window.chatRequests.length)).toBe(3);
+  await expect(page.locator(".chat-error")).toHaveCount(0);
+  await expect(page.locator(".chat-bubble.assistant").last()).not.toContainText("중단되었습니다");
+  await page.evaluate(() => window.finishChat());
+  await expect(input).toBeEmpty();
+  expect(await page.evaluate(() => window.chatRequests[1].requestId === window.chatRequests[2].requestId)).toBe(true);
+  await expect(page.locator(".chat-bubble.user").filter({hasText:"중단 후 재시도"})).toHaveCount(1);
 });
 
 test("chat request replay reuses stored question and answer",async({page})=>{
@@ -430,12 +512,19 @@ test("uploaded video reuses its local source without server video requests",asyn
   await expect.poll(()=>page.getByLabel('나의 발표 녹화 영상').evaluate(v=>v.readyState)).toBeGreaterThanOrEqual(1);
 });
 
-test("server video ranges, full streaming, cache revalidation and ownership",async({page,browser})=>{
+for (const source of ["database", "firebase"]) test(`${source} video ranges, full streaming, cache revalidation and ownership`,async({page,browser})=>{
   const id=await fixture('control');await login(page,id,'control');
   const state=await(await page.request.get('/api/study')).json();
   const size=2*1024*1024+37,bytes=Buffer.alloc(size);
   for(let i=0;i<size;i++)bytes[i]=i%251;
-  await database().query("INSERT INTO speech_experiment.recordings(round_id,mime_type,duration_ms,byte_size,video) VALUES($1,'video/webm',1000,$2,$3)",[state.round.id,size,bytes]);
+  if (source === "firebase") {
+    const upload = {participantId:id,number:1,roundId:state.round.id,mimeType:"video/webm",bytes};
+    const stored = await storeRecording(upload);
+    await database().query("INSERT INTO speech_experiment.recordings(round_id,mime_type,duration_ms,byte_size,storage_bucket,storage_path,storage_generation,sha256) VALUES($1,'video/webm',1000,$2,$3,$4,$5,$6)",[state.round.id,size,stored.storage_bucket,stored.storage_path,stored.storage_generation,stored.sha256]);
+    expect((await storeRecording(upload)).storage_generation).toBe(stored.storage_generation);
+    await expect(storeRecording({...upload,bytes:Buffer.alloc(size,1)})).rejects.toThrow("does not match");
+    expect(stored.storage_path).toBe(`experiments/${id}/attempt_1/${state.round.id}.webm`);
+  } else await database().query("INSERT INTO speech_experiment.recordings(round_id,mime_type,duration_ms,byte_size,video) VALUES($1,'video/webm',1000,$2,$3)",[state.round.id,size,bytes]);
   const url=`/api/recording/${state.round.id}`;
   const first=await page.request.get(url,{headers:{Range:'bytes=0-'}});
   expect(first.status()).toBe(206);expect(first.headers()['content-range']).toBe(`bytes 0-1048575/${size}`);

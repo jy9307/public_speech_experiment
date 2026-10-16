@@ -5,10 +5,10 @@ import {
   setParticipant,
 } from "../../lib/session";
 import { database } from "../../lib/db";
+import { sameOriginRequest } from "../../lib/request-origin";
 export async function POST(request) {
   if (
-    request.headers.get("origin") &&
-    request.headers.get("origin") !== new URL(request.url).origin
+    !sameOriginRequest(request)
   )
     return Response.json(
       { error: "허용되지 않은 요청입니다." },

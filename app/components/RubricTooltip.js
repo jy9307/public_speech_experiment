@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { rubricCategory, rubricItem } from "../lib/rubric";
+import { rubricCategory, rubricItem, RUBRIC_LEVEL_LABELS } from "../lib/rubric";
 export default function RubricTooltip({ categoryId, itemId, telemetry, roundId, screen }) {
   const category = rubricCategory(categoryId),
     item = rubricItem(categoryId, itemId);
@@ -113,7 +113,7 @@ export default function RubricTooltip({ categoryId, itemId, telemetry, roundId, 
                   {Object.entries(criterion.levels)
                     .sort(([a], [b]) => Number(b) - Number(a))
                     .map(([level, description]) => (
-                      <li key={level}>{description}</li>
+                      <li key={level}><strong>{RUBRIC_LEVEL_LABELS[level]}</strong><span>{description}</span></li>
                     ))}
                 </ul>
               </section>

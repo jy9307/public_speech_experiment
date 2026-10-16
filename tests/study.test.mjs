@@ -196,7 +196,7 @@ test("analysis context snapshots materials and only preceding feedback without p
   const { analysisContext } = await import("../app/lib/analysis-context.js");
   const first = await analysisContext(1);
   assert.equal(first.previousRound, null);
-  assert.match(first.materials.text, /세온 호수/);
+  assert.equal(first.materials.text, await readFile(new URL("../speaking_materials.md", import.meta.url), "utf8"));
   const second = await analysisContext(2, {
     number: 1,
     feedback: [{ categoryId: "content", rubricItemId: "presentation_content", text: "이전 발표의 내용 관련 피드백", score: 1, criterionAssessments: [{ score: 1 }] }],

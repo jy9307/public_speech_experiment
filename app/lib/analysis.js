@@ -3,6 +3,7 @@ import { analysisContext } from "./analysis-context.js";
 import { normalizeFeedback } from "./rubric.js";
 import { randomUUID } from "node:crypto";
 import { database, transaction } from "./db.js";
+import { recordingBytes } from "./recording-storage.js";
 export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 export async function processAnalysis(roundId) {
   const claim = randomUUID();
@@ -41,7 +42,7 @@ export async function processAnalysis(roundId) {
     const form = new FormData();
     form.set(
       "video",
-      new Blob([job.video], { type: job.mime_type }),
+      new Blob([await recordingBytes(job)], { type: job.mime_type }),
       `recording.${job.mime_type.includes("mp4") ? "mp4" : "webm"}`,
     );
     form.set("duration", String(job.duration_ms / 1000));

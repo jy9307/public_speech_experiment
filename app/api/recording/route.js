@@ -3,6 +3,7 @@ import { api } from "../../lib/api";
 import { transaction } from "../../lib/db";
 import { assertStudy, ownedRound } from "../../lib/study";
 import { MAX_VIDEO_BYTES, processAnalysis } from "../../lib/analysis";
+import { storeRecording } from "../../lib/recording-storage";
 export const runtime = "nodejs";
 export const maxDuration = 1200;
 export async function POST(request) {
@@ -46,9 +47,10 @@ export async function POST(request) {
         round.state === "recording",
         "발표를 시작한 다음 업로드해 주세요.",
       );
+      const stored = await storeRecording({ participantId: p.id, number: round.number, roundId, mimeType: video.type.split(";")[0], bytes });
       await client.query(
-        "INSERT INTO speech_experiment.recordings(round_id,mime_type,duration_ms,byte_size,video) VALUES($1,$2,$3,$4,$5) ON CONFLICT(round_id) DO NOTHING",
-        [roundId, video.type.split(";")[0], duration, video.size, bytes],
+        "INSERT INTO speech_experiment.recordings(round_id,mime_type,duration_ms,byte_size,storage_bucket,storage_path,storage_generation,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(round_id) DO NOTHING",
+        [roundId, video.type.split(";")[0], duration, video.size, stored.storage_bucket, stored.storage_path, stored.storage_generation, stored.sha256],
       );
       await client.query(
         "UPDATE speech_experiment.rounds SET state='analyzing',recording_started_at=$2,recording_ended_at=$3,upload_started_at=$4,upload_received_at=now(),timing_version=2 WHERE id=$1",

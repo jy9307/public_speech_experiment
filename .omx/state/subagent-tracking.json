@@ -4,7 +4,7 @@
     "01a13ace-4bac-7350-85ca-7847d685bc13": {
       "session_id": "01a13ace-4bac-7350-85ca-7847d685bc13",
       "leader_thread_id": "01a13ace-4bac-7350-85ca-7847d685bc13",
-      "updated_at": "2026-10-16T02:01:12.592Z",
+      "updated_at": "2026-10-16T03:34:36.634Z",
       "threads": {
         "01a13ace-4dc1-7243-9dce-3dca19c18d30": {
           "thread_id": "01a13ace-4dc1-7243-9dce-3dca19c18d30",
@@ -18,9 +18,9 @@
           "thread_id": "01a13ace-4bac-7350-85ca-7847d685bc13",
           "kind": "leader",
           "first_seen_at": "2026-10-14T15:18:29.623Z",
-          "last_seen_at": "2026-10-16T02:01:12.592Z",
-          "last_turn_id": "01a14264-d835-7c31-8031-440623091401",
-          "turn_count": 22
+          "last_seen_at": "2026-10-16T03:34:36.634Z",
+          "last_turn_id": "01a142bd-1aa8-73b1-8cbc-e4b524f7f297",
+          "turn_count": 24
         }
       }
     }

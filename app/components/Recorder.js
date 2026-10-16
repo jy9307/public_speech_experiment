@@ -71,10 +71,11 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
     setError(""); setStatus("permission");
     try {
       const media = await getMedia();
-      setStatus("checking"); telemetry.emit("device_check",{action:"start"});
+      telemetry.emit("device_check",{action:"start"});
       const ac = new AudioContext(); audio.current = ac; await ac.resume();
       const source = ac.createMediaStreamSource(media), analyser = ac.createAnalyser();
       source.connect(analyser); const data = new Uint8Array(analyser.fftSize);
+      setStatus("checking");
       const update = () => {
         if(audio.current !== ac || !mounted.current) return;
         analyser.getByteTimeDomainData(data);
@@ -91,7 +92,7 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
       const r = new MediaRecorder(media,{...(mime?{mimeType:mime}:{}),videoBitsPerSecond:700000,audioBitsPerSecond:64000});
       if (!(await onStart())) { stopDevices(); setStatus(recording ? "review":"ready"); return; }
       if(!mounted.current) {stopDevices();return;}
-      if(audio.current) {void audio.current.close();audio.current=null;}
+      if(audio.current) {telemetry.emit("device_check",{action:"end"});void audio.current.close();audio.current=null;}
       if(recording) telemetry.emit("recording_retake",{reason,previousAttemptId:recording.attemptId});
       setRecording(null);setRetake(false);chunks.current=[];bytes.current=0;storageFailed.current=false;
       const startedAt = new Date().toISOString();
@@ -152,12 +153,12 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
     </> : <div className="recording-card">
       {status === "restoring" ? <p>임시 저장한 영상을 확인하고 있습니다…</p> : !recording ? <>
         <h2>{round.number}번째 발표를 시작할 준비가 되었나요?</h2>
-        <p>시작하면 카메라와 마이크로 발표가 녹화됩니다.</p>
+        <p>{status === "checking" ? "카메라와 마이크를 확인한 뒤 ‘발표 녹화 시작’을 눌러 주세요. 그때부터 녹화와 타이머가 시작됩니다." : "발표 시작을 누르면 카메라와 마이크를 확인하는 화면으로 이동합니다. ‘발표 녹화 시작’을 누르기 전에는 녹화되지 않습니다."}</p>
         {round.state === "recording" && <p>이전 녹화가 중단되었습니다. 복구할 영상이 없으면 이번 회차를 다시 녹화해 주세요.</p>}
         {status === "checking" && <div className="device-check"><video ref={preview} autoPlay muted playsInline aria-label="점검용 카메라 미리보기"/><label>마이크 입력 <meter aria-label="마이크 입력 수준" min="0" max="100" value={mic}/></label><p>화면에 얼굴이 보이는지, 말할 때 마이크 입력 막대가 움직이는지 확인해 주세요. 점검 영상은 전송되지 않습니다.</p><button type="button" onClick={()=>{telemetry.emit("device_check",{action:"end"});stopDevices();setStatus("ready");}}>점검 마치기</button></div>}
         <div className="recording-review-actions">
           {status !== "checking" && <button type="button" className="btn-outline" disabled={status === "permission"} onClick={checkDevices}>카메라와 마이크 점검</button>}
-          <button className="sense-primary" type="button" disabled={status === "permission"} onClick={begin}>{status === "permission"?"카메라 연결 중…":`${round.number}번째 발표 시작`}</button>
+          <button className="sense-primary" type="button" disabled={status === "permission"} onClick={status === "checking" ? begin : checkDevices}>{status === "permission"?"카메라 연결 중…":status === "checking"?"발표 녹화 시작":`${round.number}번째 발표 시작`}</button>
         </div>
       </> : <>
         <h2>녹화를 마쳤습니다.</h2>

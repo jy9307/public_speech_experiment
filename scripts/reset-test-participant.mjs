@@ -1,5 +1,6 @@
 import nextEnv from "@next/env";
 import { database, transaction } from "../app/lib/db.js";
+import { deleteStoredRecording } from "../app/lib/recording-storage.js";
 nextEnv.loadEnvConfig(process.cwd());
 const id = process.argv[2]?.trim().toLowerCase();
 if (!id) throw new Error("Usage: npm run db:reset-test -- student01");
@@ -12,6 +13,8 @@ try {
       )
     ).rows[0];
     if (!row?.is_test) throw new Error("Only assigned test IDs may be reset");
+    const recordings = (await client.query("SELECT rec.* FROM speech_experiment.recordings rec JOIN speech_experiment.rounds r ON r.id=rec.round_id WHERE r.participant_id=$1", [id])).rows;
+    for (const recording of recordings) await deleteStoredRecording(recording);
     await client.query(
       "DELETE FROM speech_experiment.chat_messages WHERE round_id IN (SELECT id FROM speech_experiment.rounds WHERE participant_id=$1) AND role='assistant'",
       [id],

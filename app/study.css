@@ -373,3 +373,26 @@
 .retake-reason {margin:24px 0;padding:20px;background:#f5f7f5;border-radius:12px;}
 .retake-reason select {margin-left:12px;padding:8px;}
 .retake-reason button {margin:8px;padding:10px 16px;}
+.study-preparation {max-width:1260px;}
+.preparation-heading {display:flex;align-items:center;justify-content:space-between;gap:24px;position:sticky;top:0;z-index:12;background:#f5f7fa;padding:16px 0;}
+.preparation-heading h1 {font-size:24px;margin:0;}
+.preparation-timer {display:flex;align-items:center;gap:12px;white-space:nowrap;color:#526058;}
+.preparation-timer time {font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:#253c2e;}
+.preparation-grid {display:grid;grid-template-columns:minmax(0,1.5fr) minmax(340px,1fr);gap:24px;align-items:start;}
+.preparation-side {min-width:0;}
+.speaking-materials {background:white;border:1px solid #dce4df;border-radius:16px;padding:32px;line-height:1.95;word-break:keep-all;overflow-wrap:anywhere;}
+.speaking-materials h2 {font-size:24px;line-height:1.5;margin:12px 0 24px;}
+.speaking-materials p {margin:0 0 20px;white-space:pre-line;}
+.speaking-materials hr {border:0;border-top:1px solid #dce4df;margin:28px 0;}
+.previous-plan h2 {font-size:21px;margin-top:0;}
+.previous-plan h3 {font-size:17px;}
+.preparation-side .recording-review-actions {flex-wrap:wrap;gap:12px;}
+.preparation-side .recording-card {padding:24px;}
+.rubric-level-descriptions {list-style:none;padding-left:0;}
+.rubric-level-descriptions li strong {display:block;margin-bottom:5px;color:#294b7c;}
+.rubric-level-descriptions li span {display:block;}
+.survey-invitation {margin-bottom:28px;line-height:1.8;}
+.survey-invitation h1 {font-size:26px;}
+.survey-link {display:inline-flex;align-items:center;gap:16px;padding:12px 16px;border:1px solid #b8c8e5;border-radius:10px;color:#275bc4;background:#f1f5ff;font-weight:700;text-decoration:none;}
+.survey-link span {font-size:12px;font-weight:400;}
+@media(max-width:800px){.preparation-grid{grid-template-columns:1fr}.preparation-heading{flex-wrap:wrap}.speaking-materials{padding:24px}}

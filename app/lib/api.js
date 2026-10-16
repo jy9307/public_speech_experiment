@@ -1,10 +1,10 @@
 import { getParticipant } from "./session";
+import { sameOriginRequest } from "./request-origin";
 export async function api(request, work) {
   try {
     if (
       request.method !== "GET" &&
-      request.headers.get("origin") &&
-      request.headers.get("origin") !== new URL(request.url).origin
+      !sameOriginRequest(request)
     )
       return Response.json(
         { error: "허용되지 않은 요청입니다." },

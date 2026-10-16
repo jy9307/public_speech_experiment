@@ -40,7 +40,7 @@ try {
   ]) {
     const projection =
       table === "recordings"
-        ? "d.round_id,d.mime_type,d.duration_ms,d.byte_size,d.recorded_at"
+        ? "d.round_id,d.mime_type,d.duration_ms,d.byte_size,d.recorded_at,d.storage_bucket,d.storage_path,d.storage_generation,d.sha256"
         : "d.*";
     const join =
       table === "rounds"
@@ -60,7 +60,7 @@ try {
         exportedAt: new Date().toISOString(),
         includeTests,
         participants: participants.length,
-        note: "Recordings file contains metadata only; video bytes remain in the database.",
+        note: "Recordings file contains metadata only; video originals are stored in Firebase Storage; legacy database videos may remain until migration.",
       },
       null,
       2,

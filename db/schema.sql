@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS speech_experiment.recordings (
   video bytea NOT NULL,
   recorded_at timestamptz NOT NULL DEFAULT now()
 );
+-- Storage metadata is additive; legacy bytea remains readable during migration.
+ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_bucket text;
+ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_path text;
+ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_generation text;
+ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS sha256 text;
+ALTER TABLE speech_experiment.recordings ALTER COLUMN video DROP NOT NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='recording_content_present' AND conrelid='speech_experiment.recordings'::regclass) THEN
+    ALTER TABLE speech_experiment.recordings ADD CONSTRAINT recording_content_present CHECK
+      (video IS NOT NULL OR (storage_bucket IS NOT NULL AND storage_path IS NOT NULL AND storage_generation IS NOT NULL AND sha256 IS NOT NULL));
+  END IF;
+END $$;
 CREATE TABLE IF NOT EXISTS speech_experiment.events (
   id uuid PRIMARY KEY,
   round_id uuid NOT NULL REFERENCES speech_experiment.rounds(id),

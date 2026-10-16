@@ -1,4 +1,5 @@
 import categories from "../../fdb_cat.json" with { type: "json" };
+export const RUBRIC_LEVEL_LABELS = { 4: "매우 잘함", 3: "잘함", 2: "보통", 1: "노력요함" };
 export const EXCLUDED_RUBRIC_IDS = ["topic_relevance", "presentation_materials"];
 export const RUBRIC_CATEGORIES = categories.map((category) => ({
   ...category,

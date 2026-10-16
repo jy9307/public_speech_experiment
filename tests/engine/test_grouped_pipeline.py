@@ -1,3 +1,4 @@
+import json
 import pathlib
 import sys
 import unittest
@@ -67,7 +68,7 @@ class GroupedPipelineTest(unittest.TestCase):
         ]}})
         content = study.STUDY_CATEGORIES[0]
         prompt = grouped.category_prompt(content, 20, context)
-        self.assertIn('세온 호수', prompt)
+        self.assertIn(json.dumps(context['materials']['text'], ensure_ascii=False)[1:-1], prompt)
         self.assertIn('내용 전용 이전 피드백', prompt)
         self.assertNotIn('조직 전용 이전 피드백', prompt)
         repair = study.criterion_prompt(content, content['items'][0], 20, context=context)
