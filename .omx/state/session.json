@@ -1,0 +1,14 @@
+{
+  "session_id": "01a13ace-4bac-7350-85ca-7847d685bc13",
+  "native_session_id": "01a13ace-4bac-7350-85ca-7847d685bc13",
+  "started_at": "2026-10-16T00:29:55.868Z",
+  "cwd": "/Users/juyoung/Desktop/workspace/6. 공적 말하기/public_speech_experiment",
+  "state_root": "/Users/juyoung/Desktop/workspace/6. 공적 말하기/public_speech_experiment/.omx/state",
+  "pid": 1386,
+  "platform": "darwin",
+  "identity_schema_version": 2,
+  "process_identity": {
+    "platform": "darwin",
+    "birth": "1792110529.563513"
+  }
+}
