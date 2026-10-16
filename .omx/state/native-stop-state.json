@@ -2,11 +2,11 @@
   "sessions": {
     "01a13ace-4bac-7350-85ca-7847d685bc13": {
       "ordinary_no_progress_guard": {
-        "fingerprint": "ordinary|[운영 앱](https://study.34.158.198.43.sslip.io)에 모두 반영했습니다. - 루브릭 단계명: **매우 잘함 / 잘함 / 보통 / 노력요함** - 준비 화면: 새 지문과 준비 타이머 표시, 2회차부터 직전 행동계획도 함께 표시 - 분석: 변경된 지문을 기준으로 참고하도록 반영 - 영상: firebase의 `experiments/student번호/attempt_번호/`에 저장하도록 전환, 기존 영상 2개도 이전 완료 - 설문: 첫 화면에 사전 설문, 전체 활동 완료 화면에 사후 설문 링크 추가 실제 영상 저장과 분석, 재생까지 확인했습니다. 새로고침 후 이용해 주세요.",
-        "first_seen_at": "2026-10-16T05:36:54.249Z",
-        "last_seen_at": "2026-10-16T05:36:54.249Z",
+        "fingerprint": "ordinary|지문이 화면 가로 전체 폭을 사용하도록 넓혔습니다. 행동계획과 발표 시작 버튼은 지문 아래로 옮겼습니다. 운영 서버에 반영하고 화면 확인까지 마쳤습니다. 새로고침해 주세요.",
+        "first_seen_at": "2026-10-16T05:42:48.940Z",
+        "last_seen_at": "2026-10-16T05:42:48.940Z",
         "repeat_count": 1,
-        "last_turn_id": "01a142c6-7a51-79a3-a059-d98aa2694216",
+        "last_turn_id": "01a14339-b9c6-79b2-bab1-898c679c4ffd",
         "last_thread_id": null
       }
     }

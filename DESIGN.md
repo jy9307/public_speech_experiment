@@ -8,7 +8,7 @@ Record five presentations, process feedback after rounds 1–4, and retain parti
 ## Personas and jobs
 Students record presentations and interpret feedback. Researchers preassign conditions and collect process records.
 ## Information architecture
-Entry → preparation → recording → analysis with video review → learner opens feedback → sense-making → action-planning → next-round preparation. The preparation screen shows the current speaking passage beside the preceding action plan and a separate elapsed preparation timer. The entry and completion screens link the pre-survey and post-survey. Existing control and experiment routes remain condition protected.
+Entry → preparation → recording → analysis with video review → learner opens feedback → sense-making → action-planning → next-round preparation. The preparation screen shows the speaking passage at full width, then the preceding action plan in three columns and recording controls below. A separate elapsed preparation timer remains at the top. The entry and completion screens link the pre-survey and post-survey. Existing control and experiment routes remain condition protected.
 ## Design principles
 One primary next action per screen. Preserve existing feedback questions and area tabs. Keep recording controls sparse.
 ## Visual language

@@ -372,7 +372,7 @@ Playwright는 실제 브라우저 MediaRecorder에 합성 영상/음성 스트�
 
 - 실험 앱: https://study.34.158.198.43.sslip.io
 - 서버: SSH 별칭 `gcp-api`, `/home/teldexperiment/public_speech_experiment`
-- 앱과 분석 작업자는 Docker 이미지 `public-speech-study:20261016-storage-materials`를 사용합니다. 컨테이너 이름은 `speech-study-app`, `speech-study-worker`입니다. 재시작 정책은 `unless-stopped`입니다.
+- 앱은 Docker 이미지 `public-speech-study:20261016-wide-passage`, 분석 작업자는 `public-speech-study:20261016-storage-materials`를 사용합니다. 컨테이너 이름은 `speech-study-app`, `speech-study-worker`입니다. 재시작 정책은 `unless-stopped`입니다.
 - 앱은 `127.0.0.1:3000`에 연결하고 기존 Caddy가 HTTPS를 처리합니다. 영상 응답의 전달 지연을 줄이도록 해당 앱 프록시에 `flush_interval -1`을 적용합니다.
 - 엔진은 `pub-speak-engine`이며, `speech-study` Docker 네트워크에서 앱/작업자가 `http://pub-speak-engine:8000`으로 호출합니다. 엔진의 기존 공개 주소와 다른 서비스의 Caddy 설정은 유지합니다.
 - 비밀값은 이미지에 넣지 않습니다. 서버의 `runtime.env`를 권한 600으로 보관하고 `--env-file`로 전달합니다. `DATABASE_URL`, `SESSION_SECRET`, `GEMINI_API_KEY`, `SPEECH_ENGINE_TOKEN`, `SPEECH_ENGINE_URL` 및 `STUDY_APP_ORIGIN=https://study.34.158.198.43.sslip.io`가 필요합니다. 마지막 값은 프록시 내부 주소와 별도로 POST의 Origin을 검사하기 위한 공개 주소입니다. 로컬에서는 생략하면 요청 URL을 기준으로 검사합니다.
@@ -432,10 +432,12 @@ node scripts/migrate-recordings.mjs --release-db-copy
 
 현재 지문은 `speaking_materials.md`의 **공공 서비스의 특성과 민간 위탁의 운영 방식**입니다. 준비 화면과 분석 요청은 같은 읽기 함수를 사용하여 원문과 SHA-256을 공유합니다. 엔진의 기본 지문도 같은 원문으로 동기화합니다. 기존 분석 결과의 지문 스냅샷은 유지하고, 새 분석에 현재 지문을 사용합니다.
 
-준비 화면은 지문과 직전 회차 행동계획을 나란히 보여 줍니다. 준비 경과 시간은 준비 화면이 열려 있는 동안 누적하며 새로고침 시 같은 회차의 저장 시간을 복구합니다. 녹화와 분석 및 피드백 처리 시간은 더하지 않으며 다음 회차는 00:00부터 시작합니다. 브라우저 저장을 사용할 수 없으면 해당 화면 세션의 시계만 동작합니다. 연구용 가시 화면 체류 시간(screen_visits.active_ms)과 별도의 UI 시계입니다.
+준비 화면은 지문을 가로 전체 폭으로 보여 주고, 그 아래에 직전 행동계획과 녹화 시작 버튼을 배치합니다. 준비 경과 시간은 준비 화면이 열려 있는 동안 누적하며 새로고침 시 같은 회차의 저장 시간을 복구합니다. 녹화와 분석 및 피드백 처리 시간은 더하지 않으며 다음 회차는 00:00부터 시작합니다. 브라우저 저장을 사용할 수 없으면 해당 화면 세션의 시계만 동작합니다. 연구용 가시 화면 체류 시간(screen_visits.active_ms)과 별도의 UI 시계입니다.
 
 호버 루브릭의 단계명은 매우 잘함(내부 4), 잘함(3), 보통(2), 노력요함(1)이며 실제 화면에는 숫자를 표시하지 않습니다. 각 단계의 원래 기술문과 정의를 유지하고, 실제로 받은 등급을 표시하거나 강조하지 않습니다.
 
 로그인 첫 화면은 [사전 설문](https://forms.gle/HADj4URaV4PweZig7)을 새 창으로 연결합니다. 전체 5회 활동을 마친 화면은 [사후 설문](https://forms.gle/BCAbMYZb9m4jxxzcA)을 연결합니다. 링크 방문만으로 설문 제출 여부를 판정하지 않습니다.
 
 운영 검증에서 기존 영상 2개의 원본 SHA-256 일치를 확인하여 Firebase로 이전하고 DB 영상 바이트를 정리했습니다. DB 바이트 정리 후에도 기존 영상의 인증된 범위 재생을 확인했습니다. 별도 QA 계정의 실제 영상 업로드 → Firebase 저장 → 새 지문을 포함한 엔진 분석 → 피드백 표시 및 영상 재생도 통과했습니다. 루브릭 단계명, 준비 시계와 설문 링크를 확인했으며 단위 테스트 22개, 엔진 테스트 31개, 브라우저 시나리오 4개가 통과했습니다. 검증용 DB 행과 Storage 객체는 정리했습니다. 증거는 `exports/storage-materials-2026-10-16/verification.json`과 `migration.json`에 있습니다.
+
+지문 가로 폭 개선: 준비 화면은 최대 1600px로 넓히고 지문에 전체 폭을 배정합니다. 행동계획은 지문 아래에서 영역별 3열로 표시하고, 그 아래에 녹화 시작 버튼을 배치합니다. 준비 타이머는 상단에 유지합니다. 운영 빌드와 브라우저 확인 자료는 `exports/wide-passage-2026-10-16/`에 저장합니다.
