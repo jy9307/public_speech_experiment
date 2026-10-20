@@ -2,16 +2,39 @@
 import { useVideoTelemetry } from "../lib/useVideoTelemetry";
 import { useEffect, useRef, useState } from "react";
 import { beginRecording, saveChunk, finishRecording, recoverRecording, clearRecording } from "../lib/recording-store";
+import PreparationTimer from "./PreparationTimer";
 const MAX_BYTES = 100 * 1024 * 1024;
 const time = (n) => `${String(Math.floor(n / 60)).padStart(2,"0")}:${String(n % 60).padStart(2,"0")}`;
-export default function Recorder({ round, onStart, onUploaded, telemetry }) {
+export default function Recorder({ round, onStart, onUploaded, telemetry, autoStart = false }) {
   const preview = useRef(null), stream = useRef(null), recorder = useRef(null), chunks = useRef([]),
     started = useRef(0), mounted = useRef(true), bytes = useRef(0), draft = useRef(null),
-    storage = useRef(Promise.resolve()), storageFailed = useRef(false), audio = useRef(null);
+    storage = useRef(Promise.resolve()), storageFailed = useRef(false), audio = useRef(null),
+    autoStarted = useRef(false), autoUpload = useRef(false), pausedAt = useRef(0), pausedTotal = useRef(0);
   const [status,setStatus] = useState("restoring"), [error,setError] = useState(""),
-    [seconds,setSeconds] = useState(0), [recording,setRecording] = useState(null),
+    [recording,setRecording] = useState(null),
+    [timerPaused,setTimerPaused] = useState(false),
     [mic,setMic] = useState(0), [retake,setRetake] = useState(false), [reason,setReason] = useState("");
   const videoEvents = useVideoTelemetry(telemetry, round.id, "before_upload");
+  function recordingDurationMs() {
+    const end = pausedAt.current || performance.now();
+    return Math.max(1, Math.round(end - started.current - pausedTotal.current));
+  }
+  function recordingPausedMs() {
+    return Math.max(0, Math.round(pausedTotal.current + (pausedAt.current ? performance.now() - pausedAt.current : 0)));
+  }
+  function pauseRecording(paused) {
+    setTimerPaused(paused);
+    const mediaRecorder = recorder.current;
+    if (paused && mediaRecorder?.state === "recording") {
+      pausedAt.current = performance.now();
+      mediaRecorder.pause();
+    } else if (!paused && mediaRecorder?.state === "paused") {
+      pausedTotal.current += performance.now() - pausedAt.current;
+      pausedAt.current = 0;
+      mediaRecorder.resume();
+    }
+    telemetry.emit("recording_timer_pause", { paused }, "presentation_timer");
+  }
   function storageError() {
     storageFailed.current = true;
     if (mounted.current) setError("영상 임시 저장을 사용할 수 없습니다. 이 창을 닫거나 새로고침하지 말고 영상을 전송해 주세요.");
@@ -39,10 +62,11 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
     };
   }, [round.id]);
   useEffect(() => {
-    if (status !== "recording") return;
-    const timer = setInterval(() => setSeconds(Math.floor((performance.now()-started.current)/1000)),250);
-    return () => clearInterval(timer);
-  }, [status]);
+    if (autoStart && status === "ready" && !autoStarted.current) {
+      autoStarted.current = true;
+      void begin();
+    }
+  }, [autoStart, status]);
   useEffect(() => {
     if (["recording","checking"].includes(status) && preview.current) {
       preview.current.srcObject = stream.current;
@@ -94,7 +118,7 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
       if(!mounted.current) {stopDevices();return;}
       if(audio.current) {telemetry.emit("device_check",{action:"end"});void audio.current.close();audio.current=null;}
       if(recording) telemetry.emit("recording_retake",{reason,previousAttemptId:recording.attemptId});
-      setRecording(null);setRetake(false);chunks.current=[];bytes.current=0;storageFailed.current=false;
+      setRecording(null);setRetake(false);chunks.current=[];bytes.current=0;storageFailed.current=false;pausedAt.current=0;pausedTotal.current=0;
       const startedAt = new Date().toISOString();
       draft.current={roundId:round.id,attemptId:crypto.randomUUID(),mimeType:r.mimeType,startedAt,endedAt:startedAt,durationMs:1,complete:false};
       persist(() => beginRecording({...draft.current}));
@@ -102,7 +126,7 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
       r.ondataavailable = (e) => {
         if(!e.data.size)return;
         chunks.current.push(e.data);bytes.current+=e.data.size;
-        const snapshot={...draft.current,endedAt:new Date().toISOString(),durationMs:Math.max(1,Math.round(performance.now()-started.current))};
+        const snapshot={...draft.current,endedAt:new Date().toISOString(),durationMs:recordingDurationMs(),pausedDurationMs:recordingPausedMs()};
         const part=index++;persist(() => saveChunk(snapshot,part,e.data));
         if(bytes.current>MAX_BYTES-1024*1024 && r.state === "recording")r.stop();
       };
@@ -113,41 +137,46 @@ export default function Recorder({ round, onStart, onUploaded, telemetry }) {
       };
       r.onstop=async()=>{
         stopDevices();
-        const snapshot={...draft.current,endedAt:new Date().toISOString(),durationMs:Math.max(1,Math.round(performance.now()-started.current)),complete:true};
+        const snapshot={...draft.current,endedAt:new Date().toISOString(),durationMs:recordingDurationMs(),pausedDurationMs:recordingPausedMs(),complete:true};
         persist(()=>finishRecording(snapshot));await storage.current;
         if(!mounted.current)return;
         const blob=new Blob(chunks.current,{type:r.mimeType});
         if(!blob.size){setError("녹화된 영상이 없습니다. 다시 시작해 주세요.");setStatus("ready");return;}
         telemetry.emit("recording_stopped",{attemptId:snapshot.attemptId,durationMs:snapshot.durationMs,endedAt:snapshot.endedAt});
-        setRecording({...snapshot,blob,url:URL.createObjectURL(blob)});setStatus("review");
+        const completed={...snapshot,blob,url:URL.createObjectURL(blob)};
+        setRecording(completed);setStatus("review");
+        if(autoUpload.current){autoUpload.current=false;await upload(completed);}
       };
       media.getTracks().forEach((track)=>track.addEventListener("ended",()=>{
         if(r.state === "recording") {telemetry.emit("recording_error",{reason:"device_disconnected",attemptId:draft.current.attemptId});setError("카메라 또는 마이크 연결이 끊겼습니다. 녹화된 부분을 확인해 주세요.");r.stop();}
       }));
-      recorder.current=r;started.current=performance.now();r.start(1000);setSeconds(0);setStatus("recording");
+      recorder.current=r;started.current=performance.now();r.start(1000);setStatus("recording");
       telemetry.emit("recording_started",{attemptId:draft.current.attemptId,startedAt});
     }catch(e){deviceError(e);}
   }
-  async function upload() {
+  async function upload(source = recording) {
+    if (!source) return false;
     setStatus("uploading");setError("");
     try {
       const uploadStartedAt=new Date().toISOString(),form=new FormData();
-      form.set("roundId",round.id);form.set("durationMs",String(recording.durationMs));
-      form.set("recordingStartedAt",recording.startedAt);form.set("recordingEndedAt",recording.endedAt);form.set("uploadStartedAt",uploadStartedAt);
-      form.set("video",recording.blob,`round-${round.number}.${recording.blob.type.includes("mp4")?"mp4":"webm"}`);
-      telemetry.emit("upload_start",{attemptId:recording.attemptId,uploadStartedAt});
+      form.set("roundId",round.id);form.set("durationMs",String(source.durationMs));
+      form.set("pausedDurationMs",String(source.pausedDurationMs || 0));
+      form.set("recordingStartedAt",source.startedAt);form.set("recordingEndedAt",source.endedAt);form.set("uploadStartedAt",uploadStartedAt);
+      form.set("video",source.blob,`round-${round.number}.${source.blob.type.includes("mp4")?"mp4":"webm"}`);
+      telemetry.emit("upload_start",{attemptId:source.attemptId,uploadStartedAt});
       const response=await fetch("/api/recording",{method:"POST",body:form}),data=await response.json();
       if(!response.ok)throw Error(data.error);
-      telemetry.emit("upload_complete",{attemptId:recording.attemptId});
+      telemetry.emit("upload_complete",{attemptId:source.attemptId});
       // Hand off the Blob before unmount revokes this component's preview URL.
       // The parent owns a separate URL through analysis and feedback review.
-      await onUploaded(recording.blob);
+      await onUploaded(source.blob);
       await clearRecording(round.id).catch(()=>{});
-    }catch(e){setStatus("review");setError(e.message || "업로드하지 못했습니다. 영상을 다시 전송해 주세요.");}
+      return true;
+    }catch(e){setStatus("review");setError(e.message || "업로드하지 못했습니다. 영상을 다시 전송해 주세요.");return false;}
   }
   return <section className={`recording-surface ${status === "recording"?"is-recording":""}`} aria-label="발표 녹화">
     {status === "recording" ? <>
-      <div className="recording-toolbar"><span><i aria-hidden="true"/> 녹화 중</span><time aria-label="녹화 경과 시간">{time(seconds)}</time><button type="button" onClick={()=>{if(recorder.current?.state === "recording")recorder.current.stop();}}>발표 종료</button></div>
+      <div className="recording-toolbar"><span><i className={timerPaused?"timer-paused-dot":""} aria-hidden="true"/> {timerPaused?"녹화 일시정지":"녹화 중"}</span><PreparationTimer key={draft.current?.attemptId} roundId={`speech-${draft.current?.attemptId}`} durationSeconds={330} label="발표 남은 시간" onPauseChange={pauseRecording} onExpire={()=>{if(!["recording","paused"].includes(recorder.current?.state))return false;autoUpload.current=true;recorder.current.stop();return true;}}/><button type="button" onClick={()=>{if(["recording","paused"].includes(recorder.current?.state))recorder.current.stop();}}>발표 종료</button></div>
       <video ref={preview} className="webcam-preview" aria-label="웹캠 미리보기" autoPlay muted playsInline/>
       <h1 className="sr-only">{round.number}번째 발표 녹화 중</h1>
     </> : <div className="recording-card">

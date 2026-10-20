@@ -43,6 +43,7 @@ ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_bucket
 ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_path text;
 ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS storage_generation text;
 ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS sha256 text;
+ALTER TABLE speech_experiment.recordings ADD COLUMN IF NOT EXISTS paused_duration_ms bigint NOT NULL DEFAULT 0;
 ALTER TABLE speech_experiment.recordings ALTER COLUMN video DROP NOT NULL;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='recording_content_present' AND conrelid='speech_experiment.recordings'::regclass) THEN

@@ -7,6 +7,7 @@ import RubricTooltip from "./RubricTooltip";
 import { normalizeFeedback, feedbackText } from "../lib/rubric";
 import { FeedbackCategoryIcon } from "./FeedbackAreaIcons";
 import { SENSE_FIELDS, PLAN_FIELDS } from "../lib/questions";
+import PreparationTimer from "./PreparationTimer";
 const countAnswers = (answers, fields) =>
   fields.filter((f) => answers?.[f.id]?.trim()).length;
 function restore(rows, stage, feedback, fields) {
@@ -34,6 +35,7 @@ export default function FeedbackWorkspace({
   telemetry,
   onTransition,
   busy,
+  timerId,
 }) {
   const round = study.round,
     feedback = round.feedback.map(normalizeFeedback);
@@ -163,6 +165,7 @@ export default function FeedbackWorkspace({
           </form>
         </div>
       </header>
+      <div className="shared-cycle-timer"><PreparationTimer key={timerId} roundId={timerId} durationSeconds={900} onExpire={() => onTransition("timeout_next")} label="피드백과 다음 발표 준비 남은 시간" /></div>
       <h1 className="sr-only">
         {stage === 1 ? "피드백을 이해하고 판단하기" : "다음 발표를 계획하기"}
       </h1>

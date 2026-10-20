@@ -40,7 +40,7 @@ try {
   ]) {
     const projection =
       table === "recordings"
-        ? "d.round_id,d.mime_type,d.duration_ms,d.byte_size,d.recorded_at,d.storage_bucket,d.storage_path,d.storage_generation,d.sha256"
+        ? "d.round_id,d.mime_type,d.duration_ms,d.paused_duration_ms,d.byte_size,d.recorded_at,d.storage_bucket,d.storage_path,d.storage_generation,d.sha256"
         : "d.*";
     const join =
       table === "rounds"

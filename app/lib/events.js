@@ -11,7 +11,7 @@ const TYPES = [
   "visibility",
   "chat_start",
   "chat_end",
-  "recording_error", "recording_started", "recording_stopped", "recording_retake", "recording_recovered", "device_check",
+  "recording_error", "recording_started", "recording_stopped", "recording_retake", "recording_recovered", "recording_timer_pause", "device_check",
   "video_play", "video_pause", "video_seek", "video_end", "video_progress", "video_review_end",
   "rubric_open", "rubric_close", "upload_start", "upload_complete", "chat_question_sent", "chat_answer_received",
 ];

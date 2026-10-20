@@ -138,6 +138,13 @@ export async function transition(participantId, roundId, action) {
         "INSERT INTO speech_experiment.rounds(id,participant_id,number) VALUES($1,$2,$3) ON CONFLICT(participant_id,number) DO NOTHING",
         [randomUUID(), participantId, r.number + 1],
       );
+    } else if (action === "timeout_next") {
+      assertStudy(r.number < 5 && ["sense", "plan"].includes(r.state), "피드백 또는 행동계획 단계에서만 시간을 마칠 수 있습니다.");
+      await client.query("UPDATE speech_experiment.rounds SET state='completed',completed_at=now() WHERE id=$1", [r.id]);
+      await client.query(
+        "INSERT INTO speech_experiment.rounds(id,participant_id,number) VALUES($1,$2,$3) ON CONFLICT(participant_id,number) DO NOTHING",
+        [randomUUID(), participantId, r.number + 1],
+      );
     } else if (action === "finish") {
       assertStudy(r.number === 5 && ["completed", "analyzing", "analysis_failed"].includes(r.state), "마지막 발표 전송 후 종료할 수 있습니다.");
       assertStudy(r.upload_received_at || (r.timing_version === 1 && r.recording_ended_at), "마지막 영상을 먼저 전송해 주세요.");

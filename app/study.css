@@ -99,6 +99,7 @@
   border-radius: 50%;
   background: #bd4343;
 }
+.recording-toolbar i.timer-paused-dot {background:#d59a38;}
 .recording-toolbar time {
   font-size: 28px;
   font-variant-numeric: tabular-nums;
@@ -193,7 +194,9 @@
   .recording-toolbar {
     gap: 18px;
     padding: 18px 10px;
+    flex-wrap: wrap;
   }
+  .preparation-heading .preparation-timer {justify-content:flex-end;gap:7px;flex-wrap:wrap;}
   .webcam-preview {
     right: 12px;
     bottom: 16px;
@@ -378,6 +381,10 @@
 .preparation-heading h1 {font-size:24px;margin:0;}
 .preparation-timer {display:flex;align-items:center;gap:12px;white-space:nowrap;color:#526058;}
 .preparation-timer time {font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:#253c2e;}
+.timer-pause,.timer-retry {border:1px solid #cbd5e2;border-radius:7px;background:#fff;color:#53647e;padding:7px 10px;font-size:11px;white-space:nowrap;}
+.timer-pause:disabled {opacity:.5;cursor:default;}
+.preparation-timer.is-paused time {color:#a97522;}
+.timer-retry {border-color:#e4cb9d;background:#fff9ed;color:#95600e;}
 .preparation-grid {display:grid;grid-template-columns:minmax(0,1fr);gap:24px;align-items:start;}
 .preparation-side {min-width:0;display:grid;gap:24px;}
 .speaking-materials {background:white;border:1px solid #dce4df;border-radius:16px;padding:28px 36px;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere;}

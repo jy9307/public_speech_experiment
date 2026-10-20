@@ -16,6 +16,7 @@ export default function ExperimentRunner({ participant, materials }) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [recordingActive, setRecordingActive] = useState(false),
+    [autoStartRecording, setAutoStartRecording] = useState(false),
     [reviewRoundId, setReviewRoundId] = useState(null),
     [localVideo, setLocalVideo] = useState(null);
   const mounted = useRef(true);
@@ -89,6 +90,10 @@ export default function ExperimentRunner({ participant, materials }) {
       setStudy(data);
       if (action === "finish") setReviewRoundId(null);
       if (action === "start") setRecordingActive(true);
+      if (action === "timeout_next") {
+        setRecordingActive(true);
+        setAutoStartRecording(true);
+      }
       window.scrollTo({ top: 0, behavior: "instant" });
       return true;
     } catch (e) {
@@ -114,6 +119,13 @@ export default function ExperimentRunner({ participant, materials }) {
       </main>
     );
   const round = study.round;
+  const previousRound = study.rounds.find((item) => item.number === round.number - 1);
+  const cycleTimerId = `feedback-${round.state === "sense" || round.state === "plan" ? round.id : previousRound?.id || round.id}`;
+  function autoStartFromCountdown() {
+    setRecordingActive(true);
+    setAutoStartRecording(true);
+    return true;
+  }
   const videoSrc = localVideo?.roundId === round.id ? localVideo.url : `/api/recording/${round.id}`;
   return (
     <div onClickCapture={telemetry.click}>
@@ -159,9 +171,9 @@ export default function ExperimentRunner({ participant, materials }) {
         </main>
       ) : ["ready", "recording"].includes(round.state) ? (
         <main className={recordingActive ? "" : "study-preparation"}>
-          {!recordingActive && <><div className="preparation-heading"><h1>{round.number}번째 발표 준비</h1><PreparationTimer key={round.id} roundId={round.id}/></div><section className="study-instructions" aria-label="실험 진행 안내">
-            <p>총 5회 발표합니다. 1~4회차는 발표 → 영상 검토와 피드백 이해 → 행동계획 작성 순서로 진행합니다. 5회차는 발표 영상을 전송한 후 활동을 마칩니다.</p>
-            <p>아래 지문을 읽고 발표를 준비해 주세요. 2회차부터는 직전 행동계획도 함께 확인하세요. 카메라와 마이크를 점검한 뒤 ‘발표 녹화 시작’을 누르면 녹화됩니다.</p>
+          {!recordingActive && <><div className="preparation-heading"><h1>{round.number}번째 발표 준비</h1><PreparationTimer key={previousRound ? cycleTimerId : `prep-${round.id}`} roundId={previousRound ? cycleTimerId : `prep-${round.id}`} durationSeconds={previousRound ? 900 : 600} onExpire={autoStartFromCountdown} label={previousRound ? `${previousRound.number}회차 피드백부터` : "발표 준비 남은 시간"}/></div><section className="study-instructions" aria-label="실험 진행 안내">
+            <p>첫 발표 준비는 10분, 발표는 최대 5분 30초입니다. 피드백 처리와 다음 발표 준비에는 합쳐서 15분이 주어집니다. 일시정지 버튼으로 타이머를 멈출 수 있으며, 발표 중 일시정지하면 녹화도 함께 멈춥니다. 시간이 끝나면 다음 단계로 자동 이동합니다.</p>
+            <p>아래 지문을 읽고 발표를 준비해 주세요. 2회차부터는 직전 행동계획도 함께 확인하세요. 준비 시간이 끝나면 녹화 화면으로 이동합니다. 처음에는 브라우저에서 카메라와 마이크 권한을 허용해야 합니다.</p>
           </section></>}
           <div className={recordingActive ? "" : "preparation-grid"}>
           {!recordingActive && <SpeakingMaterials materials={materials}/>}
@@ -196,11 +208,13 @@ export default function ExperimentRunner({ participant, materials }) {
           <Recorder
             key={round.id}
             round={round}
+            autoStart={autoStartRecording}
             onStart={() => transition("start")}
             onUploaded={async (blob) => {
               setLocalVideo({ roundId: round.id, url: URL.createObjectURL(blob) });
               setReviewRoundId(round.id);
               setRecordingActive(false);
+              setAutoStartRecording(false);
               await reload().catch((e)=>setError(e.message));
             }}
             telemetry={telemetry}
@@ -217,6 +231,7 @@ export default function ExperimentRunner({ participant, materials }) {
           telemetry={telemetry}
           onTransition={transition}
           busy={busy}
+          timerId={cycleTimerId}
         />
       )}
       {(error || telemetry.error) && (
